@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fs::File, path::Path};
 use std::io::{self, BufRead};
+use std::fs::OpenOptions;
+use std::io::Write;
 use serde::{Deserialize,Serialize};
 use colored::*;
 use clap::Parser;
@@ -70,7 +72,7 @@ struct EstsPropertiesData {
     domain_type: i32,
 }
 
-fn validate_user(user: String) {
+fn validate_user(user: String) -> Option<(String, bool)> {
     let mut user_json = HashMap::new();
     user_json.insert("Username", user);
 
@@ -85,11 +87,16 @@ fn validate_user(user: String) {
              let data = resp.json::<UserData>().unwrap();
              if data.if_exists_result == 0 {
                  println!("{} : {}", "[+] Found existing user".green().bold(), data.username.green().bold());
+                 return Some((data.username, true));
              } else {
                  println!("{} : {}", "[-] User does not exist".red(), data.username.red());
+                 return Some((data.username, false));
              }
         },
-        Err(e) => println!("{:#?}", e),   
+        Err(e) => {
+            println!("{:#?}", e);
+            return None;
+        },   
     }
 }
 
@@ -107,12 +114,30 @@ fn main() -> io::Result<()> {
     let args = Args::parse();
 
     if args.email != "" {
-        validate_user(args.email.trim().to_string());
+        let _ = validate_user(args.email.trim().to_string());
     } else if args.file != "" {
-        if let Ok(lines) = read_lines(args.file) {
+        let input_path = Path::new(&args.file);
+        let parent_dir = input_path.parent().unwrap_or(Path::new("."));
+        let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
+        let results_path = parent_dir.join(format!("{}_results.csv", stem));
+
+        let mut results_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&results_path)?;
+
+        writeln!(results_file, "Username,Exists")?;
+
+        if let Ok(lines) = read_lines(&args.file) {
             for line in lines {
                 if let Ok(user) = line {
-                    validate_user(user);
+                    let trimmed = user.trim().to_string();
+                    if trimmed.is_empty() { continue; }
+                    if let Some((username, exists)) = validate_user(trimmed) {
+                        let exists_str = if exists { "true" } else { "false" };
+                        writeln!(results_file, "{},{}", username, exists_str)?;
+                    }
                 }
             }
         }
@@ -122,7 +147,7 @@ fn main() -> io::Result<()> {
         let stdin = io::stdin(); 
         stdin.read_line(&mut buffer)?;
         let user = String::from(buffer.trim());
-        validate_user(user)
+        let _ = validate_user(user)
     }
  
     Ok(())
