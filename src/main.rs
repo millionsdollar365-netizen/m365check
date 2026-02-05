@@ -147,7 +147,7 @@ fn main() -> io::Result<()> {
         let stdin = io::stdin(); 
         stdin.read_line(&mut buffer)?;
         let user = String::from(buffer.trim());
-        let _ = validate_user(user)
+        let _ = validate_user(user);
     }
  
     Ok(())
