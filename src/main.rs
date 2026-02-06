@@ -119,15 +119,20 @@ fn main() -> io::Result<()> {
         let input_path = Path::new(&args.file);
         let parent_dir = input_path.parent().unwrap_or(Path::new("."));
         let stem = input_path.file_stem().unwrap_or_default().to_string_lossy();
-        let results_path = parent_dir.join(format!("{}_results.csv", stem));
+        let valid_path = parent_dir.join(format!("{}_valid.txt", stem));
+        let invalid_path = parent_dir.join(format!("{}_invalid.txt", stem));
 
-        let mut results_file = OpenOptions::new()
+        let mut valid_file = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(&results_path)?;
+            .open(&valid_path)?;
 
-        writeln!(results_file, "Username,Exists")?;
+        let mut invalid_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&invalid_path)?;
 
         if let Ok(lines) = read_lines(&args.file) {
             for line in lines {
@@ -135,8 +140,11 @@ fn main() -> io::Result<()> {
                     let trimmed = user.trim().to_string();
                     if trimmed.is_empty() { continue; }
                     if let Some((username, exists)) = validate_user(trimmed) {
-                        let exists_str = if exists { "true" } else { "false" };
-                        writeln!(results_file, "{},{}", username, exists_str)?;
+                        if exists {
+                            writeln!(valid_file, "{}", username)?;
+                        } else {
+                            writeln!(invalid_file, "{}", username)?;
+                        }
                     }
                 }
             }
